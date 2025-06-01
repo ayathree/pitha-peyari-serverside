@@ -82,13 +82,7 @@ async function run() {
     }
 });
 
-// get all user for admin by user email
-
-
-
-  
-
-    
+   
 
     // save a pitha item in database
     app.post('/addItem',async(req,res)=>{
@@ -314,6 +308,16 @@ app.get('/checkOutData/:email', async(req,res)=>{
       'cartProductId': { $in: productIds },
       'customerEmail': orderData.customerInfo.email
     });
+      res.send(result)
+    })
+
+    // get all single order data by customer email
+
+    app.get('/orderData/:email',  async(req,res)=>{
+      const email= req.params.email
+      const query = {'customerInfo.email': email}
+      console.log(query)
+      const result = await orderCollection.find(query).toArray()
       res.send(result)
     })
    
