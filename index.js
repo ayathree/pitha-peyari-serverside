@@ -313,13 +313,13 @@ app.get('/checkOutData/:email', async(req,res)=>{
 
     // get all single order data by customer email
 
-    app.get('/orderData/:email',  async(req,res)=>{
-      const email= req.params.email
-      const query = {'customerInfo.email': email}
-      console.log(query)
-      const result = await orderCollection.find(query).toArray()
-      res.send(result)
-    })
+    // app.get('/orderData/:email',  async(req,res)=>{
+    //   const email= req.params.email
+    //   const query = {'customerInfo.email': email}
+    //   console.log(query)
+    //   const result = await orderCollection.find(query).toArray()
+    //   res.send(result)
+    // })
    
      // get all order of a user from db
     app.get('/order/:email', async(req,res)=>{
