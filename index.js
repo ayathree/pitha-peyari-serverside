@@ -6,7 +6,7 @@ const port = process.env.PORT || 5000;
 const app = express();
 
 const corsOptions = {
-  origin : ['http://localhost:5173','http://localhost:5174'],
+  origin : ['http://localhost:5173','http://localhost:5174', 'https://pitha-peyari-23917.web.app'],
   credentials : true,
   optionSuccessStatus : 200,
 
@@ -40,31 +40,49 @@ async function run() {
 
 
     // save a user in db
-    app.post('/allUsers', async (req, res) => {
-      const user = req.body;
-      
-      // Check if user already exists
-      const query = { email: user.email };
-      const existingUser = await userCollection.findOne(query);
-      
-      if (existingUser) {
-        return res.send({ message: 'user already exists', insertedId: null });
-      }
-    
-      // Add role field with default value 'user'
-      const userWithRole = {
-        ...user,
-        role: 'user' // Default role for new users
-      };
-    
-      // Insert the new user with role
-      const result = await userCollection.insertOne(userWithRole);
-      res.send(result);
+   app.post('/allUsers', async (req, res) => {
+  const user = req.body;
+  
+  // Check by email OR uid if available
+  const query = { 
+    $or: [
+      { email: user.email },
+      ...(user.uid ? [{ uid: user.uid }] : [])
+    ]
+  };
+
+  const existingUser = await userCollection.findOne(query);
+  
+  if (existingUser) {
+    // Update last login but preserve role
+    await userCollection.updateOne(
+      { _id: existingUser._id },
+      { $set: { lastLogin: new Date() } }
+    );
+    return res.send({ 
+      message: 'user exists', 
+      user: existingUser 
     });
+  }
+
+  // New user with default role
+  const userWithDefaults = {
+    ...user,
+    role: 'user',
+    createdAt: new Date(),
+    lastLogin: new Date()
+  };
+
+  const result = await userCollection.insertOne(userWithDefaults);
+  res.send({
+    message: 'new user created',
+    user: { ...userWithDefaults, _id: result.insertedId }
+  });
+});
 
 
    
-   // get all user data
+       // get all user data
         app.get('/allUsers', async(req,res)=>{
           const result = await userCollection.find().toArray()
     
@@ -73,14 +91,58 @@ async function run() {
 
      
       // get the user role
-  app.get('/allUsers/:role', async (req, res) => {
-    try {
-        const result = await userCollection.find({ role: req.params.role }).toArray();
-        res.send(result); // Send array directly instead of {success, data}
-    } catch (error) {
-        res.status(500).send("Server error");
-    }
-});
+  app.get('/allUsers/admin/:email',  async(req,res)=>{
+       const email = req.params.email;
+      //  if (email !== req.decoded.email) {
+      //    return res.status(403).send({message: 'unauthorized access'})
+         
+      //  }
+       const query = {email: email};
+       const user = await userCollection.findOne(query);
+       let admin = false;
+       if (user) {
+         admin = user?.role=== 'admin';
+         
+       }
+       res.send({ admin})
+ 
+     })
+
+// admin route
+    // app.get('/allUsers/admin/:email', async (req, res) => {
+    //   try {
+    //     // 1. Get the requesting user's email from the verified token
+    //     const requestingUserEmail = req.user.email;
+    //     console.log(requestingUserEmail); // From verifyToken middleware
+        
+    //     // 2. Get the target email from params
+    //     const targetEmail = req.params.email;
+    //     console.log(targetEmail);
+    
+    //     // 3. Find the requesting user in database
+    //     const requestingUser = await userCollection.findOne({ email: requestingUserEmail });
+    //     console.log(requestingUser);
+        
+    //     // 4. Authorization check - only allow if:
+    //     //    a) User is checking their own status, OR
+    //     //    b) User is an admin
+    //     if (requestingUserEmail !== targetEmail && requestingUser?.role !== 'admin') {
+    //       return res.status(403).json({ message: 'Unauthorized access' });
+    //     }
+    
+    //     // 5. Proceed with the admin check
+    //     const targetUser = await userCollection.findOne({ email: targetEmail });
+    //     res.json({ 
+    //       admin: targetUser?.role === 'admin',
+    //       email: targetEmail
+    //     });
+    //     console.log(targetUser);
+    
+    //   } catch (err) {
+    //     console.error('Admin check error:', err);
+    //     res.status(500).json({ message: 'Server error' });
+    //   }
+    // });
 
    
 
