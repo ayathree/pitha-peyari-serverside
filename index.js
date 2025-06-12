@@ -36,7 +36,8 @@ async function run() {
     const wishCollection = client.db("pithaPeyariDB").collection("wishList");
     const orderCollection = client.db("pithaPeyariDB").collection("order");
     const reviewCollection = client.db("pithaPeyariDB").collection("review");
-    const userCollection = client.db('pithaPeyariDB').collection('users')
+    const userCollection = client.db('pithaPeyariDB').collection('users');
+    const contactCollection = client.db('pithaPeyariDB').collection('contact');
 
 
     // save a user in db
@@ -203,6 +204,16 @@ async function run() {
       const result = await itemCollection.updateOne(query,updateDoc,options)
       res.send(result)
       
+    })
+     // get all item data by category name
+    app.get('/itemCategory/:category', async(req,res)=>{
+      const category=decodeURIComponent (req.params.category)
+     const query = { 
+     category: { $regex: new RegExp(`^${category}$`, 'i') }
+    };
+      console.log(query)
+      const result = await itemCollection.find(query).toArray()
+      res.send(result)
     })
 
     // save a product in cart
@@ -488,6 +499,19 @@ app.get('/products/:productId/reviews', async (req, res) => {
     res.status(500).send('Server error');
   }
 });
+
+// adding messages in database
+ app.post('/contacts', async (req, res) => {
+      const contact = req.body;
+      const result = await contactCollection.insertOne(contact);
+      res.send(result);
+    });
+
+// get message from db 
+ app.get('/contacts', async(req,res)=>{
+      const result = await contactCollection.find().toArray()
+      res.send(result)
+    })
 
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
