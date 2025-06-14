@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const jwt = require('jsonwebtoken')
+const cookieParser = require('cookie-parser')
 require('dotenv').config();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.PORT || 5000;
@@ -16,6 +18,24 @@ const corsOptions = {
 
  app.use(cors(corsOptions))
 app.use(express.json());
+app.use(cookieParser())
+
+// verifyToken middleware
+const verifyToken=(req,res,next)=>{
+   const token = req.cookies?.token
+        if(!token) return res.status(401).send({message:'unauthorized access'})
+          if(token){
+            jwt.verify(token, process.env.ACCESS_TOKEN_SECRET,(err,decoded)=>{
+              if(err){
+                console.log(err)
+                return res.status(401).send({message:"unauthorized access"})
+              }
+              console.log(decoded)
+              req.user=decoded
+              next()
+            })
+          }
+}
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.ycbv1lf.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -38,6 +58,30 @@ async function run() {
     const reviewCollection = client.db("pithaPeyariDB").collection("review");
     const userCollection = client.db('pithaPeyariDB').collection('users');
     const contactCollection = client.db('pithaPeyariDB').collection('contact');
+
+
+    // jwt token
+    app.post('/jwt', async(req,res)=>{
+      const user = req.body
+      const token = jwt.sign(user,process.env.ACCESS_TOKEN_SECRET,{
+        expiresIn:'365d'
+      })
+      res.cookie('token', token,{
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite:process.env.NODE_ENV === 'production'?'none':'strict',
+      }).send({success:true})
+    })
+
+    // clear cookie
+     app.get('/logout', async(req,res)=>{
+      res.clearCookie('token', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production'?'none':'strict',
+        maxAge:0,
+      }).send({success: true})
+    })
 
 
     // save a user in db
@@ -84,7 +128,7 @@ async function run() {
 
    
        // get all user data
-        app.get('/allUsers', async(req,res)=>{
+        app.get('/allUsers', verifyToken, async(req,res)=>{
           const result = await userCollection.find().toArray()
     
           res.send(result)
@@ -92,7 +136,7 @@ async function run() {
 
      
       // get the user role
-  app.get('/allUsers/admin/:email',  async(req,res)=>{
+  app.get('/allUsers/admin/:email', verifyToken,  async(req,res)=>{
        const email = req.params.email;
       //  if (email !== req.decoded.email) {
       //    return res.status(403).send({message: 'unauthorized access'})
@@ -167,14 +211,14 @@ async function run() {
     })
 
     // get all item data save by admin
-    app.get('/itemsData/:email', async(req,res)=>{
+    app.get('/itemsData/:email', verifyToken, async(req,res)=>{
       const email = req.params.email
       const query = {adminEmail : email}
       const result =await itemCollection.find(query).toArray()
       res.send(result)
     })
     // delete a item data from db
-    app.delete('/itemData/:id', async(req,res)=>{
+    app.delete('/itemData/:id', verifyToken, async(req,res)=>{
       const id = req.params.id
       const query = {_id : new ObjectId(id)}
       
@@ -191,7 +235,7 @@ async function run() {
       res.send(result)
     })
     //  update a item data 
-    app.put('/itemData/:id', async(req,res)=>{
+    app.put('/itemData/:id', verifyToken, async(req,res)=>{
       const id = req.params.id
       const productData = req.body
       const query = {_id : new ObjectId(id)}
@@ -233,7 +277,7 @@ async function run() {
     })
 
     // get all cart product
-    app.get('/cart/:email', async(req,res)=>{
+    app.get('/cart/:email', verifyToken, async(req,res)=>{
       const email = req.params.email
       const query = {customerEmail : email}
       const result =await cartCollection.find(query).toArray()
@@ -241,7 +285,7 @@ async function run() {
     })
 
     // delete a cart data from db
-    app.delete('/cartData/:id', async(req,res)=>{
+    app.delete('/cartData/:id', verifyToken, async(req,res)=>{
       const id = req.params.id
       const query = {_id : new ObjectId(id)}
       
@@ -251,7 +295,7 @@ async function run() {
 
     // get all single cart data
 
-     app.get('/cartData/:id', async(req,res)=>{
+     app.get('/cartData/:id', verifyToken, async(req,res)=>{
       const id= req.params.id
       const query = {_id: new ObjectId (id)}
       console.log(query)
@@ -259,7 +303,7 @@ async function run() {
       res.send(result)
     })
     // PATCH /cartData/:id - Update cart item quantity
-app.patch('/cartData/:id', async (req, res) => {
+app.patch('/cartData/:id', verifyToken, async (req, res) => {
   try {
       const id = req.params.id;
       const { quantity } = req.body;
@@ -285,7 +329,7 @@ app.patch('/cartData/:id', async (req, res) => {
 });
 
 // get all cart data for checkout of a user from db
-app.get('/checkOutData/:email', async(req,res)=>{
+app.get('/checkOutData/:email', verifyToken, async(req,res)=>{
   const email = req.params.email
   const query = {customerEmail : email}
   const result =await cartCollection.find(query).toArray()
@@ -333,7 +377,7 @@ app.get('/checkOutData/:email', async(req,res)=>{
     });
 
      // get all wish listed product of a user from db
-    app.get('/wish/:email', async(req,res)=>{
+    app.get('/wish/:email', verifyToken, async(req,res)=>{
      
       const email = req.params.email
       
@@ -342,7 +386,7 @@ app.get('/checkOutData/:email', async(req,res)=>{
       res.send(result)
     })
     // delete a wishListed  data from db
-    app.delete('/wishData/:id', async(req,res)=>{
+    app.delete('/wishData/:id', verifyToken, async(req,res)=>{
       const id = req.params.id
       const query = {_id : new ObjectId(id)}
       
@@ -395,7 +439,7 @@ app.get('/checkOutData/:email', async(req,res)=>{
     // })
    
      // get all order of a user from db
-    app.get('/order/:email', async(req,res)=>{
+    app.get('/order/:email', verifyToken, async(req,res)=>{
       
       const email = req.params.email
       const query = {'customerInfo.email' : email}
@@ -404,7 +448,7 @@ app.get('/checkOutData/:email', async(req,res)=>{
     })
 
     // get all order of a user for a admin from db
-    app.get('/orderAdmin/:email', async(req,res)=>{
+    app.get('/orderAdmin/:email', verifyToken, async(req,res)=>{
       
       const email = req.params.email
      
@@ -415,7 +459,7 @@ app.get('/checkOutData/:email', async(req,res)=>{
 
     // get all single order data
 
-    app.get('/orderData/:id',  async(req,res)=>{
+    app.get('/orderData/:id', verifyToken, async(req,res)=>{
       const id= req.params.id
       const query = {_id: new ObjectId (id)}
       console.log(query)
@@ -423,7 +467,7 @@ app.get('/checkOutData/:email', async(req,res)=>{
       res.send(result)
     })
     //  update a order data 
-    app.patch('/orderData/:id', async(req,res)=>{
+    app.patch('/orderData/:id', verifyToken, async(req,res)=>{
       const id = req.params.id
       const { name, phone, address, city, zipCode } = req.body;
       const query = {_id: new ObjectId(id)}
@@ -442,7 +486,7 @@ app.get('/checkOutData/:email', async(req,res)=>{
     })
 
     // delete a order data from db
-    app.delete('/orderData/:id', async(req,res)=>{
+    app.delete('/orderData/:id', verifyToken, async(req,res)=>{
       const id = req.params.id
       const query = {_id : new ObjectId(id)}
       
@@ -451,7 +495,7 @@ app.get('/checkOutData/:email', async(req,res)=>{
     })
 
     // update status
-    app.patch('/order/:id', async (req,res)=>{
+    app.patch('/order/:id', verifyToken, async (req,res)=>{
       const id=req.params.id
       const { status } = req.body
       const query = {_id: new ObjectId(id)}
@@ -508,7 +552,7 @@ app.get('/products/:productId/reviews', async (req, res) => {
     });
 
 // get message from db 
- app.get('/contacts', async(req,res)=>{
+ app.get('/contacts', verifyToken, async(req,res)=>{
       const result = await contactCollection.find().toArray()
       res.send(result)
     })
